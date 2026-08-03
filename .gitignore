@@ -1,0 +1,17 @@
+# Build output — regenerated automatically by the deploy workflow, never committed
+/dist/
+
+# Internal planning notes, not part of the published app
+/docs/
+
+# OS junk
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Orphaned files pending deletion (locked by Google Drive sync as of 2026-07-24,
+# unused since the online/Supabase layer was removed — delete once unlocked)
+/src/online/
+/src/online-index.html
+/src/vendor/supabase.min.js
+/src/vendor/LICENSE.supabase.txt

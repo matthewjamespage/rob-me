@@ -1,0 +1,77 @@
+name: Version, release, and deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history + tags, needed to compute the next version
+
+      # Every push to main gets its own version: read the latest vX.Y.Z tag
+      # and bump the patch number. First push ever becomes v0.1.0.
+      - name: Compute next version
+        id: version
+        run: |
+          latest=$(git tag --list 'v*.*.*' --sort=-v:refname | head -n1)
+          if [ -z "$latest" ]; then
+            new="v0.1.0"
+          else
+            IFS='.' read -r major minor patch <<< "${latest#v}"
+            new="v${major}.${minor}.$((patch + 1))"
+          fi
+          echo "version=$new" >> "$GITHUB_OUTPUT"
+          echo "Building $new (previous: ${latest:-none})"
+
+      - name: Build standalone app
+        run: node build.js
+        env:
+          ROBME_VERSION: ${{ steps.version.outputs.version }}
+
+      - name: Tag this commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${{ steps.version.outputs.version }}"
+          git push origin "${{ steps.version.outputs.version }}"
+
+      # Changelog: GitHub auto-writes it from the commit messages/PR titles
+      # since the last tag, so there's nothing to hand-maintain. Write
+      # descriptive commit messages — they become the release notes.
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          files: dist/ROB-ME.html
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment

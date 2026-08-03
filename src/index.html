@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ROB-ME</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="nav-bar" id="nav-top">
+  <div class="nav-row">
+    <span class="autosave-status" id="autosave-status"></span>
+    <span class="app-version" id="app-version">__ROBME_VERSION__</span>
+    <div class="nav-spacer"></div>
+    <button type="button" data-action="save-progress">Save Progress</button>
+    <button type="button" data-action="open-resume-dialog">Resume Progress</button>
+  </div>
+</header>
+
+<div class="restore-banner" id="restore-banner" hidden>
+  <span>We restored your unsaved progress from this browser.</span>
+  <button type="button" data-action="dismiss-restore">Keep this</button>
+  <button type="button" data-action="discard-restore">Discard and start fresh</button>
+</div>
+
+<div class="multitab-banner" id="multitab-banner" hidden>
+  <span>This app is also open in another browser tab, and it just saved progress there. If you keep working in both tabs, whichever one saves last will overwrite the other's progress. Use just one tab at a time to be safe.</span>
+  <button type="button" data-action="dismiss-multitab">Got it</button>
+</div>
+
+<nav class="stepper" id="stepper" aria-label="Assessment progress"></nav>
+
+<main id="page-content"></main>
+
+<footer class="nav-bar" id="nav-bottom">
+  <div class="nav-row">
+    <button type="button" data-action="prev">Previous</button>
+    <span class="nav-page-label" id="page-label-bottom"></span>
+    <button type="button" data-action="next">Next</button>
+  </div>
+  <div class="nav-row">
+    <div class="nav-spacer"></div>
+    <button type="button" data-action="save-progress">Save Progress</button>
+    <button type="button" data-action="open-resume-dialog">Resume Progress</button>
+  </div>
+</footer>
+
+<dialog id="resume-dialog" class="resume-dialog">
+  <h2>Resume from a saved file</h2>
+  <p>Select your saved <code>.csv</code> progress file. If your assessment had any forest/funnel plot images, also select those image files below. This step is optional, and safe to skip if you didn't upload any plots.</p>
+
+  <div class="resume-field">
+    <label for="resume-csv-input"><b>Progress file (required)</b></label>
+    <input type="file" id="resume-csv-input" accept=".csv,text/csv">
+  </div>
+
+  <div class="resume-field">
+    <label for="resume-forest-input"><b>Forest plot images (optional)</b></label>
+    <input type="file" id="resume-forest-input" accept="image/*" multiple>
+  </div>
+
+  <div class="resume-field">
+    <label for="resume-funnel-input"><b>Funnel plot images (optional)</b></label>
+    <input type="file" id="resume-funnel-input" accept="image/*" multiple>
+  </div>
+
+  <p class="resume-hint">Tip: name your files like <code>forest_MA1.png</code> and <code>funnel_MA1.png</code> (plot type + meta-analysis number) to have the dropdowns below pre-filled automatically. You can still change them after uploading.</p>
+
+  <div id="resume-image-rows"></div>
+
+  <p class="resume-hint">Not sure which files you need? See "Saving &amp; resuming your progress" on the Instructions page for details.</p>
+
+  <div class="resume-dialog-actions">
+    <button type="button" data-action="resume-cancel">Cancel</button>
+    <button type="button" data-action="resume-confirm" class="resume-confirm-btn">Load Progress</button>
+  </div>
+</dialog>
+
+
+<script src="vendor/exceljs.min.js"></script>
+<script src="vendor/docx.iife.js"></script>
+<script src="vendor/html2canvas.min.js"></script>
+<script src="csv-shared.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
