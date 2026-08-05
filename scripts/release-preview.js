@@ -12,23 +12,24 @@
 // Open the printed path yourself instead.
 //
 // Usage:
-//   node release-preview.js "Description of this update"          (preview only)
-//   node release-preview.js "Description of this update" --push   (commit + push)
+//   node scripts/release-preview.js "Description of this update"          (preview only)
+//   node scripts/release-preview.js "Description of this update" --push   (commit + push)
 const { execSync } = require("child_process");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
 
+const rootDir = path.join(__dirname, "..");
 const message = process.argv[2];
 const doPush = process.argv.includes("--push");
 
 if (!message) {
-  console.error('Usage: node release-preview.js "Description of this update" [--push]');
+  console.error('Usage: node scripts/release-preview.js "Description of this update" [--push]');
   process.exit(1);
 }
 
 console.log("Building the app...");
-execSync("node build.js", { stdio: "inherit" });
+execSync(`node "${path.join(__dirname, "build.js")}"`, { stdio: "inherit" });
 
 // Mirrors the version-bump logic in .github/workflows/deploy-pages.yml, so
 // the preview shows the same version number the real push will be tagged as.
@@ -65,7 +66,7 @@ const changes = execSync("git status --short", { encoding: "utf-8" }).trim();
 console.log("\nChanges about to be committed:");
 console.log(changes || "  (none - nothing to commit)");
 
-const builtFile = path.join(__dirname, "dist", "ROB-ME.html");
+const builtFile = path.join(rootDir, "dist", "ROB-ME.html");
 console.log(`\nOpen this file to preview it (double-click it, or open in your browser):\n  ${builtFile}`);
 
 if (!doPush) {

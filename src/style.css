@@ -73,16 +73,6 @@ h3 {
   letter-spacing: 0.02em;
 }
 
-@media (prefers-color-scheme: dark) {
-  h1 {
-    color: #cfe4fb;
-    border-bottom-color: #7fb2e0;
-  }
-  h2 {
-    color: #7fb2e0;
-  }
-}
-
 .nav-bar {
   background: canvas;
   border: 1px solid var(--border);
@@ -130,16 +120,6 @@ button:hover:not(:disabled) {
 button:disabled {
   cursor: default;
   opacity: 0.6;
-}
-
-@media (prefers-color-scheme: dark) {
-  button {
-    background: #1c3a52;
-    color: #cfe4fb;
-  }
-  button:hover:not(:disabled) {
-    background: #234863;
-  }
 }
 
 select {
@@ -204,12 +184,6 @@ main#page-content {
   margin: 0 0 var(--space-3);
 }
 
-@media (prefers-color-scheme: dark) {
-  .auto-fill-note {
-    color: #7fb2e0;
-  }
-}
-
 .rob-reasoning {
   margin: var(--space-2) 0 var(--space-5);
   font-size: var(--font-size-sm);
@@ -223,12 +197,6 @@ main#page-content {
 .rob-reasoning ul {
   margin: 0.4rem 0 0;
   padding-left: 1.25rem;
-}
-
-@media (prefers-color-scheme: dark) {
-  .rob-reasoning summary {
-    color: #7fb2e0;
-  }
 }
 
 .step1-ma-controls {
@@ -306,12 +274,6 @@ main#page-content {
   padding: var(--space-3) var(--space-6);
 }
 
-@media (prefers-color-scheme: dark) {
-  .landing-button {
-    background: #4a90d9;
-  }
-}
-
 .instructions-steps {
   counter-reset: instructions-step;
   list-style: none;
@@ -342,10 +304,20 @@ main#page-content {
   justify-content: center;
 }
 
+.instructions-steps > li h2,
 .instructions-steps > li h3,
 .instructions-steps > li h4 {
   margin: 0 0 var(--space-1);
   opacity: 1;
+}
+
+/* The top-level instructions list uses <h2> (promoted from <h3> so the page's
+   heading levels run h1->h2->h3->h4 with no skips), but should keep looking
+   like the rest of this list's h3/h4 items rather than a full-size h2. */
+.instructions-steps > li h2 {
+  font-size: var(--font-size-md);
+  color: canvastext;
+  letter-spacing: 0.02em;
 }
 
 .instructions-steps > li p {
@@ -375,15 +347,6 @@ main#page-content {
   font: inherit;
 }
 
-@media (prefers-color-scheme: dark) {
-  .instructions-tip {
-    background: #17324a;
-  }
-  .link-button {
-    color: #7fb2e0;
-  }
-}
-
 .codebook-details {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -398,12 +361,6 @@ main#page-content {
 
 .codebook-details[open] summary {
   margin-bottom: var(--space-3);
-}
-
-@media (prefers-color-scheme: dark) {
-  .codebook-details summary {
-    color: #7fb2e0;
-  }
 }
 
 .callout {
@@ -425,16 +382,6 @@ main#page-content {
 .callout.tip {
   background: var(--color-primary-tint);
   border-left: 4px solid var(--color-primary);
-}
-
-@media (prefers-color-scheme: dark) {
-  .callout.warning {
-    background: #3a3212;
-    color: #f5e9b8;
-  }
-  .callout.tip {
-    background: #17324a;
-  }
 }
 
 table.codebook {
@@ -461,13 +408,6 @@ table.codebook th, table.codebook td {
 table.codebook th {
   background: var(--color-primary-tint);
   color: var(--color-primary-dark);
-}
-
-@media (prefers-color-scheme: dark) {
-  table.codebook th {
-    background: #17324a;
-    color: #cfe4fb;
-  }
 }
 
 table.codebook tr:nth-child(even) td {
@@ -518,14 +458,6 @@ table.codebook tr:nth-child(even) td {
   margin: var(--space-4) 0 0;
 }
 
-@media (prefers-color-scheme: dark) {
-  .step-banner {
-    background: #17324a;
-    color: #cfe4fb;
-    border-left-color: #4a90d9;
-  }
-}
-
 .stepper {
   display: flex;
   flex-wrap: wrap;
@@ -563,14 +495,6 @@ table.codebook tr:nth-child(even) td {
   font-weight: 700;
   color: var(--accent);
   z-index: 1;
-}
-
-@media (prefers-color-scheme: dark) {
-  .stepper-pill.active {
-    background: #17324a;
-    border-color: #7fb2e0;
-    color: #cfe4fb;
-  }
 }
 
 .stepper-pill.answered::after {
@@ -614,14 +538,6 @@ table.codebook tr:nth-child(even) td {
   display: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  .multitab-banner {
-    background: #4a2313;
-    color: #ffd2ba;
-    border-bottom-color: #8a4a2a;
-  }
-}
-
 .autosave-status {
   font-size: var(--font-size-xs);
   opacity: 0.7;
@@ -632,14 +548,6 @@ table.codebook tr:nth-child(even) td {
   font-size: var(--font-size-xs);
   font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
   opacity: 0.5;
-}
-
-@media (prefers-color-scheme: dark) {
-  .restore-banner {
-    background: #3a3212;
-    color: #f5e9b8;
-    border-bottom-color: #7a692a;
-  }
 }
 
 .step2-key { margin-bottom: 1rem; }
@@ -973,4 +881,98 @@ table.codebook tr:nth-child(even) td {
   border-radius: var(--radius-sm);
   padding: 0.4rem var(--space-4);
   cursor: pointer;
+}
+
+/* ============================================================
+   Dark mode overrides — consolidated here (was previously 13
+   separate @media blocks scattered next to each light-mode
+   rule) so dark-mode coverage for the whole app is checkable
+   at a glance. Same selectors/declarations as before, grouped
+   by the component they belong to; no visual change.
+   ============================================================ */
+@media (prefers-color-scheme: dark) {
+  /* Headings */
+  h1 {
+    color: #cfe4fb;
+    border-bottom-color: #7fb2e0;
+  }
+  h2 {
+    color: #7fb2e0;
+  }
+
+  /* Buttons */
+  button {
+    background: #1c3a52;
+    color: #cfe4fb;
+  }
+  button:hover:not(:disabled) {
+    background: #234863;
+  }
+
+  /* Field hints */
+  .auto-fill-note {
+    color: #7fb2e0;
+  }
+
+  /* "Why this suggestion?" reasoning panel (Step 4) */
+  .rob-reasoning summary {
+    color: #7fb2e0;
+  }
+
+  /* Landing page */
+  .landing-button {
+    background: #4a90d9;
+  }
+
+  /* Instructions page */
+  .instructions-tip {
+    background: #17324a;
+  }
+  .link-button {
+    color: #7fb2e0;
+  }
+  .codebook-details summary {
+    color: #7fb2e0;
+  }
+
+  /* Callout boxes (tip/warning) */
+  .callout.warning {
+    background: #3a3212;
+    color: #f5e9b8;
+  }
+  .callout.tip {
+    background: #17324a;
+  }
+
+  /* Codebook reference tables (Instructions page) */
+  table.codebook th {
+    background: #17324a;
+    color: #cfe4fb;
+  }
+
+  /* Step banner (page heading strip) */
+  .step-banner {
+    background: #17324a;
+    color: #cfe4fb;
+    border-left-color: #4a90d9;
+  }
+
+  /* Stepper nav */
+  .stepper-pill.active {
+    background: #17324a;
+    border-color: #7fb2e0;
+    color: #cfe4fb;
+  }
+
+  /* Restore / multi-tab banners */
+  .restore-banner {
+    background: #3a3212;
+    color: #f5e9b8;
+    border-bottom-color: #7a692a;
+  }
+  .multitab-banner {
+    background: #4a2313;
+    color: #ffd2ba;
+    border-bottom-color: #8a4a2a;
+  }
 }

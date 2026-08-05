@@ -33,8 +33,23 @@
   };
 
   let pages = [];
+  // Populated by renderStepper() below, keyed by page.id, so the "answered"
+  // dot on the *current* page's pill can be refreshed after a keystroke
+  // without wiping/rebuilding the whole stepper bar or re-checking every
+  // other page (see updateCurrentStepperPill()).
+  let stepperPillsById = {};
   let autosaveTimer = null;
+  // Remembers the Q3.1/Q3.2/Q3.3 combo (and which state.answers object it
+  // was computed against) that q3_overall's suggestion was last derived
+  // from — see applyStep3Cascade() below.
+  let step3CascadeMemo = null;
   let autosaveStatusTimer = null;
+  // Tracks whether the user's already been warned this session that local
+  // autosave is failing (e.g. a large uploaded plot image pushed the
+  // localStorage payload over the browser's quota) — avoids re-alerting on
+  // every single keystroke's failed autosave attempt while the condition
+  // persists. Reset the moment a save succeeds again.
+  let autosaveQuotaWarningShown = false;
 
   // Page count/order depends on n_ma (2*n_ma+4 pages), so this must be
   // recomputed whenever n_ma changes, not just once at load.
@@ -112,27 +127,27 @@
 
       <ol class="instructions-steps">
         <li>
-          <h3>Initial Setup</h3>
+          <h2>Initial Setup</h2>
           <p>Enter how many meta-analyses you're assessing. The app builds one "Step 1" and one "Step 4" page per meta-analysis automatically.</p>
         </li>
         <li>
-          <h3>Step 1. Select and define meta-analyses</h3>
+          <h2>Step 1. Select and define meta-analyses</h2>
           <p>For each meta-analysis, record the PICO elements and eligibility criteria (participants, intervention, comparator, outcome, study designs, outcome definitions, methods of analysis) that will be assessed for risk of bias due to missing evidence.</p>
         </li>
         <li>
-          <h3>Step 2. Results matrix</h3>
+          <h2>Step 2. Results matrix</h2>
           <p>List every study meeting the inclusion criteria and mark, for each meta-analysis, whether its results are available, partially available, unclear, or missing.</p>
         </li>
         <li>
-          <h3>Step 3. Circumstances across the review</h3>
+          <h2>Step 3. Circumstances across the review</h2>
           <p>Answer a small set of review-wide questions about circumstances that indicate a potential for missing studies (e.g. reliance on prospective registration, evidence of selective reporting).</p>
         </li>
         <li>
-          <h3>Step 4. Assess risk of bias</h3>
+          <h2>Step 4. Assess risk of bias</h2>
           <p>For each meta-analysis, work through the guided questions to reach a suggested risk-of-bias judgement, then record your final judgement, direction of bias, and remarks. Forest/funnel plot images can be attached here.</p>
         </li>
         <li>
-          <h3>Summary</h3>
+          <h2>Summary</h2>
           <p>Review a combined table of every meta-analysis's judgement, and export it as an Excel, Word, or image file.</p>
         </li>
       </ol>
@@ -376,7 +391,7 @@
     textarea.addEventListener("input", () => {
       state.answers[key] = textarea.value;
       scheduleAutosave();
-      renderStepper(currentPage());
+      updateCurrentStepperPill();
     });
     autoGrowTextarea(textarea);
     wrapper.appendChild(label);
@@ -429,7 +444,7 @@
       state.answers[key] = select.value;
       applyResultColor(select);
       scheduleAutosave();
-      renderStepper(currentPage());
+      updateCurrentStepperPill();
     });
     return select;
   }
@@ -443,7 +458,7 @@
     input.addEventListener("input", () => {
       state.answers[key] = input.value;
       scheduleAutosave();
-      renderStepper(currentPage());
+      updateCurrentStepperPill();
     });
     return input;
   }
@@ -459,6 +474,19 @@
       state.answers[key] = input.value === "" ? "" : Number(input.value);
       scheduleAutosave();
     });
+    // Whole-number, non-negative fields (participant/study counts) accept
+    // free typing while the user is mid-entry (the "input" listener above),
+    // but get rounded/clamped to a valid whole number once they leave the
+    // field — same pattern as the Setup n_ma field's correction-on-change.
+    if (min !== undefined) {
+      input.addEventListener("change", () => {
+        if (input.value === "") return;
+        const corrected = Math.max(min, Math.round(Number(input.value) || 0));
+        input.value = corrected;
+        state.answers[key] = corrected;
+        scheduleAutosave();
+      });
+    }
     return input;
   }
 
@@ -787,8 +815,12 @@
       state.answers[key] = select.value;
       if (opts.decisionColor) applyDecisionColor(select, opts.inverted);
       scheduleAutosave();
-      renderStepper(currentPage());
+      // triggerCascade already re-renders the whole page (Step 3/4's
+      // disabled-state and auto-fills can change), which rebuilds the
+      // stepper as part of that — no need to also refresh the pill here,
+      // that would just repeat the same work twice.
       if (opts.triggerCascade) render();
+      else updateCurrentStepperPill();
     });
     return select;
   }
@@ -822,21 +854,51 @@
     state.answers.q3_2_results = q2;
     state.answers.q3_3_results = q3;
 
-    let overall = state.answers.q3_overall || "";
-    if (q1 === "Yes") {
-      overall = "No";
-    } else if (q1 === "No") {
-      if (NO_PROBABLY_NO.includes(q2)) {
-        overall = "Yes";
-      } else if (YES_PROBABLY_YES.includes(q2)) {
-        if (NO_PROBABLY_NO.includes(q3)) overall = "Yes";
-        else if (YES_PROBABLY_YES.includes(q3)) overall = "No";
-        // else Q3.3 unanswered — leave overall as-is
+    // q3_overall re-derivation is gated on Q3.1/Q3.2/Q3.3 actually having
+    // changed since we last computed it (tracked in step3CascadeMemo, kept
+    // outside state.answers so it isn't picked up by hasMeaningfulProgress()
+    // or CSV export). Without this gate, this function — which runs on
+    // every ordinary page-enter, not just real edits — would silently
+    // overwrite a manual override of q3_overall (or one loaded from a save
+    // file) the moment the user merely navigated away and back, even though
+    // the UI advertises this field as "suggested from your Q3.1–Q3.3
+    // answers. You can override this." A different state.answers object
+    // (fresh session, import, restore) resets the memo so the freshly
+    // loaded value is trusted as-is rather than immediately recomputed.
+    const seed = `${q1}|${q2}|${q3}`;
+    const isFreshAnswers = !step3CascadeMemo || step3CascadeMemo.answersRef !== state.answers;
+    const changed = !isFreshAnswers && step3CascadeMemo.seed !== seed;
+    step3CascadeMemo = { answersRef: state.answers, seed };
+
+    if (changed) {
+      let overall = state.answers.q3_overall || "";
+      if (q1 === "Yes") {
+        overall = "No";
+      } else if (q1 === "No") {
+        if (NO_PROBABLY_NO.includes(q2)) {
+          overall = "Yes";
+        } else if (YES_PROBABLY_YES.includes(q2)) {
+          if (NO_PROBABLY_NO.includes(q3)) overall = "Yes";
+          else if (YES_PROBABLY_YES.includes(q3)) overall = "No";
+          // else Q3.3 unanswered — leave overall as-is
+        }
+        // else Q3.2 unanswered — leave overall as-is
       }
-      // else Q3.2 unanswered — leave overall as-is
+      // else Q3.1 unanswered — leave overall as-is
+      state.answers.q3_overall = overall;
     }
-    // else Q3.1 unanswered — leave overall as-is
-    state.answers.q3_overall = overall;
+
+    // Q4.5 on every meta-analysis's Step 4 page is auto-filled from
+    // q3_overall (applyStep4Cascade), but that function only otherwise runs
+    // when a given Step 4 page is actually rendered — so without this, a
+    // meta-analysis whose Step 4 page isn't revisited after a Step 3 change
+    // would keep showing a stale Q4.5/suggested judgement (and stale
+    // Q4.6/4.7/4.8 enabled-state) until the user happened to click through
+    // to it. Refresh every meta-analysis's Step 4 state here instead, so a
+    // Step 3 change propagates to Q4.5 everywhere immediately, not just on
+    // the currently-viewed page.
+    const n_ma = Number(state.answers.n_ma) || 1;
+    for (let i = 1; i <= n_ma; i++) applyStep4Cascade(i);
   }
 
   function step3Question(labelHtml, hintText, key, choices, disabled, triggerCascade, autoFillNote, inverted) {
@@ -1240,7 +1302,7 @@
       reader.onload = () => {
         state.answers[dataKey] = { name: file.name, dataUrl: reader.result };
         scheduleAutosave();
-        renderStepper(currentPage());
+        updateCurrentStepperPill();
         refresh();
       };
       reader.readAsDataURL(file);
@@ -1250,7 +1312,7 @@
       delete state.answers[dataKey];
       fileInput.value = "";
       scheduleAutosave();
-      renderStepper(currentPage());
+      updateCurrentStepperPill();
       refresh();
     });
 
@@ -1436,6 +1498,44 @@
     URL.revokeObjectURL(url);
   }
 
+  // ExcelJS/docx/html2canvas (~2.2MB combined) are only used by the four
+  // export functions below, reachable only from the last page (Summary) -
+  // loading them isn't worth slowing down every page view for. Their source
+  // still ships inside the single built HTML file (see src/index.html's
+  // <script type="text/plain"> placeholders, filled in by build.js), so
+  // offline/standalone use is unaffected; this just defers *evaluating*
+  // that text until the first export that actually needs it, caching the
+  // in-flight promise so a second export click while the first is still
+  // loading doesn't kick off a duplicate load.
+  const vendorLibLoadPromises = {};
+  function loadVendorLib(placeholderId, globalName) {
+    if (window[globalName]) return Promise.resolve();
+    if (vendorLibLoadPromises[placeholderId]) return vendorLibLoadPromises[placeholderId];
+    vendorLibLoadPromises[placeholderId] = new Promise((resolve, reject) => {
+      const holder = document.getElementById(placeholderId);
+      if (!holder) { reject(new Error(`Missing library placeholder #${placeholderId}`)); return; }
+      const script = document.createElement("script");
+      if (holder.textContent.trim()) {
+        // Built single-file app: the library source is inlined as text.
+        script.textContent = holder.textContent;
+        document.head.appendChild(script);
+        resolve();
+      } else if (holder.dataset.src) {
+        // Running unbuilt straight from src/ during development.
+        script.src = holder.dataset.src;
+        script.addEventListener("load", () => resolve());
+        script.addEventListener("error", () => reject(new Error(`Failed to load ${holder.dataset.src}`)));
+        document.head.appendChild(script);
+      } else {
+        reject(new Error(`Library placeholder #${placeholderId} has no content or data-src`));
+      }
+    });
+    return vendorLibLoadPromises[placeholderId];
+  }
+  function loadExceljs() { return loadVendorLib("lib-exceljs", "ExcelJS"); }
+  function loadDocx() { return loadVendorLib("lib-docx", "docx"); }
+  function loadHtml2canvas() { return loadVendorLib("lib-html2canvas", "html2canvas"); }
+
   const ROB_ME_FOOTER_TEXT = "This table is generated using the ROB-ME tool.";
   const ROB_ME_FOOTER_URL = "https://www.riskofbias.info/welcome/rob-me-tool";
   // Character-width column widths, sized per column's actual content rather
@@ -1444,6 +1544,7 @@
   const SUMMARY_COL_WIDTHS = [6, 40, 32, 26, 14, 20];
 
   async function exportSummaryXlsx() {
+    await loadExceljs();
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Summary");
     const title = state.answers.output_title || "";
@@ -1552,6 +1653,7 @@
   }
 
   async function exportSummaryDocx() {
+    await loadDocx();
     const { Document, Packer, Table, TableRow, Paragraph, TextRun, WidthType, AlignmentType, PageOrientation, Header, Footer } = docx;
 
     const title = state.answers.output_title || "";
@@ -1610,6 +1712,7 @@
   }
 
   async function exportSummaryPng() {
+    await loadHtml2canvas();
     const title = state.answers.output_title || "";
     const rows = buildSummaryRows();
 
@@ -1726,6 +1829,7 @@
   // Mirrors the R app's "Download all answers as .docx" — a full assessment
   // document covering Initial Setup and every step, not just the summary table.
   async function exportAllAnswersDocx() {
+    await loadDocx();
     const n_ma = Number(state.answers.n_ma) || 0;
     const n_studies = Number(state.answers.n_studies) || 0;
     const children = [];
@@ -1927,7 +2031,7 @@
     titleField.addEventListener("input", () => {
       state.answers.output_title = titleField.value;
       scheduleAutosave();
-      renderStepper(currentPage());
+      updateCurrentStepperPill();
     });
     div.appendChild(titleField);
 
@@ -2013,7 +2117,8 @@
     state.answers.n_ma = newIndex;
     buildPages();
     scheduleAutosave();
-    renderStepper(currentPage());
+    // goToId() below navigates and calls render(), which rebuilds the
+    // stepper anyway (pages.length just changed) — no separate call needed.
     goToId(`step1_${newIndex}`);
   }
 
@@ -2057,7 +2162,7 @@
     buildPages();
     if (state.currentPageIndex >= pages.length) state.currentPageIndex = pages.length - 1;
     scheduleAutosave();
-    renderStepper(currentPage());
+    // render() below rebuilds the stepper anyway (pages.length just changed).
     render();
   }
 
@@ -2111,7 +2216,7 @@
       }
       copyPicoFields(Number(select.value), currentIndex);
       scheduleAutosave();
-      renderStepper(currentPage());
+      // render() below rebuilds the stepper anyway.
       render();
     });
     wrap.appendChild(label);
@@ -2265,6 +2370,7 @@
     const nav = document.getElementById("stepper");
     if (!nav) return;
     nav.innerHTML = "";
+    stepperPillsById = {};
     pages.forEach((p) => {
       const pill = document.createElement("button");
       pill.type = "button";
@@ -2275,12 +2381,35 @@
       pill.textContent = stepperLabel(p);
       pill.addEventListener("click", () => goToId(p.id));
       nav.appendChild(pill);
+      stepperPillsById[p.id] = pill;
     });
+  }
+
+  // Cheap alternative to renderStepper() for plain field edits (typing in a
+  // textarea, picking a select value, etc.): a keystroke on the current page
+  // can only change *that page's* own answered-status (pageAnswered() never
+  // reads another page's fields), so there's no need to wipe/rebuild every
+  // pill and re-run pageAnswered() for the whole `pages` list — including
+  // Step 2's check, which scans the full n_ma x n_studies results matrix —
+  // on every single keystroke anywhere in the app. Only used when the page
+  // list/current page itself hasn't changed; anything that changes those
+  // (navigation, add/remove study or MA, Step 3 cascades) still goes through
+  // the full render() -> renderStepper() path, which rebuilds the pill map
+  // this function reads from.
+  function updateCurrentStepperPill() {
+    const page = currentPage();
+    const pill = stepperPillsById[page.id];
+    if (!pill) return;
+    pill.classList.toggle("answered", pageAnswered(page) === true);
   }
 
   function renderNavChrome(page) {
     const label = `Page ${state.currentPageIndex + 1} of ${pages.length}: ${page.label}`;
     document.getElementById("page-label-bottom").textContent = label;
+    const prevBtn = document.querySelector('[data-action="prev"]');
+    const nextBtn = document.querySelector('[data-action="next"]');
+    if (prevBtn) prevBtn.disabled = state.currentPageIndex <= 0;
+    if (nextBtn) nextBtn.disabled = state.currentPageIndex >= pages.length - 1;
   }
 
   // ---- CSV save/resume ----
@@ -2557,8 +2686,24 @@
     try {
       localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(payload));
       flashAutosaveStatus("Saved locally just now");
+      autosaveQuotaWarningShown = false;
     } catch (err) {
       flashAutosaveStatus("Local autosave unavailable");
+      // The 2.5s status flash above is easy to miss, and a quota failure
+      // means real, silent data-loss risk (nothing survives a refresh/close
+      // until the user explicitly exports) — most commonly triggered by a
+      // large uploaded plot image pushing the whole session past the
+      // browser's localStorage quota (typically ~5-10MB). Surface a harder
+      // one-time warning so it isn't missed, without re-alerting on every
+      // subsequent keystroke while the condition persists.
+      if (err && err.name === "QuotaExceededError" && !autosaveQuotaWarningShown) {
+        autosaveQuotaWarningShown = true;
+        alert(
+          "Your progress can no longer be auto-saved locally in this browser — the session data (likely a large uploaded plot image) is too big for local storage. " +
+          "Your work in this tab is fine for now, but it will NOT survive a page refresh or closed tab. " +
+          "Please use \"Save Progress\" soon to download a durable copy, and consider using a smaller/compressed plot image."
+        );
+      }
     }
   }
 

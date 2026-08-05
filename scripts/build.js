@@ -3,12 +3,13 @@
 // file with no external file references. This single output is both the
 // downloadable standalone app and the file deployed to GitHub Pages, so
 // there's nothing else to keep in sync.
-// Run with: node build.js
+// Run with: node scripts/build.js
 const fs = require("fs");
 const path = require("path");
 
-const srcDir = path.join(__dirname, "src");
-const distDir = path.join(__dirname, "dist");
+const rootDir = path.join(__dirname, "..");
+const srcDir = path.join(rootDir, "src");
+const distDir = path.join(rootDir, "dist");
 fs.mkdirSync(distDir, { recursive: true });
 
 let html = fs.readFileSync(path.join(srcDir, "index.html"), "utf-8");
@@ -29,9 +30,24 @@ html = replaceOrThrow(
   /<link rel="stylesheet" href="style\.css">/,
   () => `<style>\n${css}\n</style>`
 );
-html = replaceOrThrow(html, /<script src="vendor\/exceljs\.min\.js"><\/script>/, () => `<script>\n${exceljs}\n</script>`);
-html = replaceOrThrow(html, /<script src="vendor\/docx\.iife\.js"><\/script>/, () => `<script>\n${docx}\n</script>`);
-html = replaceOrThrow(html, /<script src="vendor\/html2canvas\.min\.js"><\/script>/, () => `<script>\n${html2canvas}\n</script>`);
+// Filled into inert type="text/plain" placeholders (see src/index.html),
+// not live <script> tags - app.js's loadVendorLib() evaluates each one's
+// text content lazily, only once the export that needs it is first used.
+html = replaceOrThrow(
+  html,
+  /<script type="text\/plain" id="lib-exceljs" data-src="vendor\/exceljs\.min\.js"><\/script>/,
+  () => `<script type="text/plain" id="lib-exceljs">\n${exceljs}\n</script>`
+);
+html = replaceOrThrow(
+  html,
+  /<script type="text\/plain" id="lib-docx" data-src="vendor\/docx\.iife\.js"><\/script>/,
+  () => `<script type="text/plain" id="lib-docx">\n${docx}\n</script>`
+);
+html = replaceOrThrow(
+  html,
+  /<script type="text\/plain" id="lib-html2canvas" data-src="vendor\/html2canvas\.min\.js"><\/script>/,
+  () => `<script type="text/plain" id="lib-html2canvas">\n${html2canvas}\n</script>`
+);
 html = replaceOrThrow(html, /<script src="csv-shared\.js"><\/script>/, () => `<script>\n${csvShared}\n</script>`);
 html = replaceOrThrow(html, /<script src="app\.js"><\/script>/, () => `<script>\n${appJs}\n</script>`);
 

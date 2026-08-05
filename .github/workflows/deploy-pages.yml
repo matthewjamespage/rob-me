@@ -40,7 +40,7 @@ jobs:
           echo "Building $new (previous: ${latest:-none})"
 
       - name: Build standalone app
-        run: node build.js
+        run: node scripts/build.js
         env:
           ROBME_VERSION: ${{ steps.version.outputs.version }}
 

@@ -11,14 +11,16 @@ src/            Source files (edit these)
   style.css
   app.js
   vendor/       Third-party libraries (exceljs, docx, html2canvas)
-build.js        Bundles src/ into dist/ROB-ME.html
+scripts/        Build and release-preview scripts
+  build.js            Bundles src/ into dist/ROB-ME.html
+  release-preview.js  Preview a build + its release notes before pushing
 dist/           Build output — generated, not committed (see .gitignore)
 ```
 
 ## Building locally
 
 ```
-node build.js
+node scripts/build.js
 ```
 
 Produces `dist/ROB-ME.html`, a single self-contained file with no external
@@ -29,7 +31,7 @@ a browser to test.
 ## Deployment
 
 Pushing to `main` triggers `.github/workflows/deploy-pages.yml`, which runs
-`node build.js` and publishes `dist/` to GitHub Pages automatically. There is
+`node scripts/build.js` and publishes `dist/` to GitHub Pages automatically. There is
 nothing to build or push manually — edit `src/`, commit, push, and the live
 site updates within a minute or two.
 
@@ -40,8 +42,24 @@ external dependencies.
 ## Making changes
 
 1. Edit files under `src/`.
-2. Run `node build.js` and open `dist/ROB-ME.html` in a browser to sanity-check.
+2. Run `node scripts/build.js` and open `dist/ROB-ME.html` in a browser to sanity-check.
 3. Commit with a message that describes what changed — it becomes the release notes — and push to `main`.
+
+## Docs folder
+
+`docs/` holds the project's planning/reference files. Each one has an HTML
+comment at its own top marking whether it's a permanent "log file" (stays in
+`docs/`, keeps getting updated) or a candidate for archiving once resolved.
+
+| File | Function |
+|---|---|
+| `ROB-ME_design_decisions.md` | **Session log.** Chronological, dated record of every decision and change made in each working session — same role as a `session_log.md` in other projects. Newest entries at the bottom. Read this first to see what's happened and why. |
+| `ROB-ME_user_tasks.md` | Open action items only Phoebe can do (decisions, external accounts, manual verification). Checked off and moved to the completed file once confirmed done. |
+| `ROB-ME_user_tasks_completed.md` | Append-only historical record of everything already done, moved out of `ROB-ME_user_tasks.md` to keep that file short. |
+| `ROB-ME_app_architecture.md` | Current architecture reference — standalone vs. online modes, save file format, auth design. |
+| `ROB-ME_style_guide.md` | Visual design reference (colors, typography, spacing, components) for the app and all exported/standalone documents. |
+| `ROB-ME_future_additions.md` | Ideas and changes explicitly tabled for a later round, not part of the current build. |
+| `docs/.archive/` | Fully-resolved or superseded docs, kept for history but no longer actively maintained. |
 
 ## Versioning
 

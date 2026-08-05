@@ -78,9 +78,17 @@
 </dialog>
 
 
-<script src="vendor/exceljs.min.js"></script>
-<script src="vendor/docx.iife.js"></script>
-<script src="vendor/html2canvas.min.js"></script>
+<!-- ExcelJS/docx/html2canvas are only used by the export buttons on the
+     Summary page (~2.2MB combined) - loading/parsing/executing them on
+     every page view would slow down startup for everyone, not just users
+     who export. type="text/plain" keeps the browser from touching them at
+     all; app.js's loadVendorLib() evaluates one only the first time an
+     export actually needs it. build.js fills in the built copy's text
+     content directly (still fully offline, no separate file); data-src is
+     the fallback for running unbuilt straight from src/. -->
+<script type="text/plain" id="lib-exceljs" data-src="vendor/exceljs.min.js"></script>
+<script type="text/plain" id="lib-docx" data-src="vendor/docx.iife.js"></script>
+<script type="text/plain" id="lib-html2canvas" data-src="vendor/html2canvas.min.js"></script>
 <script src="csv-shared.js"></script>
 <script src="app.js"></script>
 </body>
