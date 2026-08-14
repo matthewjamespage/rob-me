@@ -26,6 +26,19 @@
     getAllVarnames,
     FORMULA_GUARD_RE,
   } = window.RobMeShared;
+  // Q4 decision-tree logic lives in decision-tree.js (loaded before this
+  // script) so app.js, the exhaustive test, and the flowchart generator all
+  // run the exact same code — see that file's header comment for why.
+  const {
+    Q4_YN_CHOICES,
+    Q4_YPN_NI_CHOICES,
+    Q4_YPN_CHOICES,
+    YES_PROBABLY_YES,
+    NO_PROBABLY_NO,
+    isAnswerEmpty,
+    anyAnswerEmpty,
+    computeStep4Cascade,
+  } = window.RobMeDecisionTree;
 
   const state = {
     answers: { n_ma: 1 },
@@ -764,8 +777,6 @@
   const Q3_1_CHOICES = ["", "Yes", "No"];
   const Q3_2_3_CHOICES = ["", "Not applicable", "Yes", "Probably yes", "Probably no", "No"];
   const Q3_OVERALL_CHOICES = ["", "Yes", "No"];
-  const YES_PROBABLY_YES = ["Yes", "Probably yes"];
-  const NO_PROBABLY_NO = ["No", "Probably no"];
 
   function decisionColorCategory(value, inverted) {
     if (inverted) {
@@ -978,166 +989,8 @@
     return div;
   }
 
-  const Q4_YN_CHOICES = ["", "Yes", "No"];
-  const Q4_YPN_NI_CHOICES = ["", "Yes", "Probably yes", "Probably no", "No", "No information"];
-  const Q4_YPN_CHOICES = ["", "Yes", "Probably yes", "Probably no", "No"];
   const ROB_CHOICES = ["", "Low", "Some concerns", "High"];
   const ROB_DIR_CHOICES = ["", "Favours experimental", "Favours comparator", "Towards null", "Away from null", "Unpredictable"];
-  const YES_PROB_NO_INFO = ["Yes", "Probably yes", "No information"];
-
-  function isAnswerEmpty(v) {
-    return v === undefined || v === null || v === "";
-  }
-
-  function anyAnswerEmpty(...vals) {
-    return vals.some(isAnswerEmpty);
-  }
-
-  // Direct port of the R app's calculate_rob_suggestion() decision tree.
-  // Keep in lockstep with that function if the tree ever changes there.
-  // Same decision tree as before, but threaded with a `trail` of plain-English
-  // facts ("Q4.5 = Yes") accumulated as each branch is evaluated, so the UI
-  // can show *why* a suggestion was reached — from the same single source of
-  // truth as the suggestion itself, not a second copy that could drift out
-  // of sync with it.
-  function calculateRobSuggestionDetailed(q4_1, q4_2, q4_3, q4_4, q4_5, q4_6, q4_7, q4_8) {
-    const trail = [];
-    const conclude = (result) => {
-      trail.push(result ? `→ Suggested: ${result}` : "→ Not enough answers yet to suggest a judgement.");
-      return { result, trail };
-    };
-
-    if (!anyAnswerEmpty(q4_1, q4_3) && q4_1 === "No" && q4_3 === "No") {
-      trail.push("Q4.1 = No", "Q4.3 = No");
-      if (isAnswerEmpty(q4_5)) return conclude("");
-      trail.push(`Q4.5 = ${q4_5}`);
-      if (q4_5 === "No") return conclude("Low");
-      if (q4_5 === "Yes") {
-        if (anyAnswerEmpty(q4_6, q4_7)) return conclude("");
-        trail.push(`Q4.6 = ${q4_6}`, `Q4.7 = ${q4_7}`);
-        if (NO_PROBABLY_NO.includes(q4_6)) {
-          if (NO_PROBABLY_NO.includes(q4_7)) return conclude("Low");
-          if (YES_PROBABLY_YES.includes(q4_7)) {
-            if (isAnswerEmpty(q4_8)) return conclude("");
-            trail.push(`Q4.8 = ${q4_8}`);
-            if (NO_PROBABLY_NO.includes(q4_8)) return conclude("Some concerns");
-            if (YES_PROBABLY_YES.includes(q4_8)) return conclude("High");
-          }
-        }
-        if (YES_PROBABLY_YES.includes(q4_6)) {
-          if (NO_PROBABLY_NO.includes(q4_7)) {
-            if (isAnswerEmpty(q4_8)) return conclude("");
-            trail.push(`Q4.8 = ${q4_8}`);
-            if (NO_PROBABLY_NO.includes(q4_8)) return conclude("Some concerns");
-            if (YES_PROBABLY_YES.includes(q4_8)) return conclude("High");
-          }
-          if (YES_PROBABLY_YES.includes(q4_7)) return conclude("High");
-        }
-      }
-    } else if (!anyAnswerEmpty(q4_1, q4_3) && (q4_1 === "Yes" || q4_3 === "Yes")) {
-      trail.push(`Q4.1 = ${q4_1}`, `Q4.3 = ${q4_3}`);
-      if (q4_1 === "Yes" && isAnswerEmpty(q4_2)) return conclude("");
-      if (q4_3 === "Yes" && isAnswerEmpty(q4_4)) return conclude("");
-      if (!isAnswerEmpty(q4_2)) trail.push(`Q4.2 = ${q4_2}`);
-      if (!isAnswerEmpty(q4_4)) trail.push(`Q4.4 = ${q4_4}`);
-
-      const condAQ42 = ["No", "Probably no", ""];
-      const condAQ44 = ["No", "Probably no", ""];
-      const isQ42Low = q4_1 === "No" || (!isAnswerEmpty(q4_2) && condAQ42.includes(q4_2));
-      const isQ44Low = q4_3 === "No" || (!isAnswerEmpty(q4_4) && condAQ44.includes(q4_4));
-
-      if (isQ42Low && isQ44Low) {
-        if (isAnswerEmpty(q4_5)) return conclude("");
-        trail.push(`Q4.5 = ${q4_5}`);
-        if (q4_5 === "No") {
-          if (isAnswerEmpty(q4_7)) return conclude("");
-          trail.push(`Q4.7 = ${q4_7}`);
-          if (NO_PROBABLY_NO.includes(q4_7)) return conclude("Low");
-          if (YES_PROBABLY_YES.includes(q4_7)) {
-            if (isAnswerEmpty(q4_8)) return conclude("");
-            trail.push(`Q4.8 = ${q4_8}`);
-            if (NO_PROBABLY_NO.includes(q4_8)) return conclude("Some concerns");
-            if (YES_PROBABLY_YES.includes(q4_8)) return conclude("High");
-          }
-        }
-        if (q4_5 === "Yes") {
-          if (anyAnswerEmpty(q4_6, q4_7)) return conclude("");
-          trail.push(`Q4.6 = ${q4_6}`, `Q4.7 = ${q4_7}`);
-          if (NO_PROBABLY_NO.includes(q4_6)) {
-            if (NO_PROBABLY_NO.includes(q4_7)) return conclude("Low");
-            if (YES_PROBABLY_YES.includes(q4_7)) {
-              if (isAnswerEmpty(q4_8)) return conclude("");
-              trail.push(`Q4.8 = ${q4_8}`);
-              if (NO_PROBABLY_NO.includes(q4_8)) return conclude("Some concerns");
-              if (YES_PROBABLY_YES.includes(q4_8)) return conclude("High");
-            }
-          }
-          if (YES_PROBABLY_YES.includes(q4_6)) {
-            if (NO_PROBABLY_NO.includes(q4_7)) {
-              if (isAnswerEmpty(q4_8)) return conclude("");
-              trail.push(`Q4.8 = ${q4_8}`);
-              if (NO_PROBABLY_NO.includes(q4_8)) return conclude("Some concerns");
-              if (YES_PROBABLY_YES.includes(q4_8)) return conclude("High");
-            }
-            if (YES_PROBABLY_YES.includes(q4_7)) return conclude("High");
-          }
-        }
-        return conclude("");
-      }
-
-      const condBQ44 = ["Yes", "Probably yes", "No information"];
-      const isQ42InfoMissing = q4_1 === "Yes" && !isAnswerEmpty(q4_2) && q4_2 === "No information";
-      const isQ44HighConcern = q4_3 === "Yes" && !isAnswerEmpty(q4_4) && condBQ44.includes(q4_4);
-
-      if (isQ42InfoMissing || isQ44HighConcern) {
-        if (isAnswerEmpty(q4_5)) return conclude("");
-        trail.push(`Q4.5 = ${q4_5}`);
-        if (q4_5 === "No") {
-          if (isAnswerEmpty(q4_7)) return conclude("");
-          trail.push(`Q4.7 = ${q4_7}`);
-          if (NO_PROBABLY_NO.includes(q4_7)) {
-            if (isAnswerEmpty(q4_8)) return conclude("");
-            trail.push(`Q4.8 = ${q4_8}`);
-            if (NO_PROBABLY_NO.includes(q4_8)) return conclude("Some concerns");
-            if (YES_PROBABLY_YES.includes(q4_8)) return conclude("High");
-          }
-          if (YES_PROBABLY_YES.includes(q4_7)) return conclude("High");
-        }
-        if (q4_5 === "Yes") {
-          if (anyAnswerEmpty(q4_6, q4_7)) return conclude("");
-          trail.push(`Q4.6 = ${q4_6}`, `Q4.7 = ${q4_7}`);
-          if (NO_PROBABLY_NO.includes(q4_6)) {
-            if (NO_PROBABLY_NO.includes(q4_7)) {
-              if (isAnswerEmpty(q4_8)) return conclude("");
-              trail.push(`Q4.8 = ${q4_8}`);
-              if (NO_PROBABLY_NO.includes(q4_8)) return conclude("Some concerns");
-              if (YES_PROBABLY_YES.includes(q4_8)) return conclude("High");
-            }
-            if (YES_PROBABLY_YES.includes(q4_7)) return conclude("High");
-          }
-          if (YES_PROBABLY_YES.includes(q4_6)) {
-            if (NO_PROBABLY_NO.includes(q4_7)) {
-              if (isAnswerEmpty(q4_8)) return conclude("");
-              trail.push(`Q4.8 = ${q4_8}`);
-              if (NO_PROBABLY_NO.includes(q4_8)) return conclude("Some concerns");
-              if (YES_PROBABLY_YES.includes(q4_8)) return conclude("High");
-            }
-            if (YES_PROBABLY_YES.includes(q4_7)) return conclude("High");
-          }
-        }
-        return conclude("");
-      }
-
-      const isQ42HighConcern = q4_1 === "Yes" && !isAnswerEmpty(q4_2) && YES_PROBABLY_YES.includes(q4_2);
-      if (isQ42HighConcern) return conclude("High");
-    }
-
-    return conclude("");
-  }
-
-  function calculateRobSuggestion(q4_1, q4_2, q4_3, q4_4, q4_5, q4_6, q4_7, q4_8) {
-    return calculateRobSuggestionDetailed(q4_1, q4_2, q4_3, q4_4, q4_5, q4_6, q4_7, q4_8).result;
-  }
 
   function step4FoundMarkers(maIndex) {
     const n_studies = Number(state.answers.n_studies) || 1;
@@ -1159,42 +1012,33 @@
     const { foundX, foundQMark } = step4FoundMarkers(maIndex);
     const isQ3Checked = state.answers.q3_overall === "Yes";
 
-    state.answers[`${maIndex}_q4_1`] = foundX ? "Yes" : "No";
-    const q4_2Enabled = foundX;
-    if (!q4_2Enabled) state.answers[`${maIndex}_q4_2`] = "";
+    const cascade = computeStep4Cascade({
+      foundX, foundQMark, isQ3Checked,
+      q4_2: state.answers[`${maIndex}_q4_2`],
+      q4_4: state.answers[`${maIndex}_q4_4`],
+      q4_6: state.answers[`${maIndex}_q4_6`],
+      q4_7: state.answers[`${maIndex}_q4_7`],
+      q4_8: state.answers[`${maIndex}_q4_8`],
+    });
 
-    state.answers[`${maIndex}_q4_3`] = foundQMark ? "Yes" : "No";
-    const q4_4Enabled = foundQMark;
-    if (!q4_4Enabled) state.answers[`${maIndex}_q4_4`] = "";
+    state.answers[`${maIndex}_q4_1`] = cascade.q4_1;
+    state.answers[`${maIndex}_q4_2`] = cascade.q4_2;
+    state.answers[`${maIndex}_q4_3`] = cascade.q4_3;
+    state.answers[`${maIndex}_q4_4`] = cascade.q4_4;
+    state.answers[`${maIndex}_q4_5`] = cascade.q4_5;
+    state.answers[`${maIndex}_q4_6`] = cascade.q4_6;
+    state.answers[`${maIndex}_q4_7`] = cascade.q4_7;
+    state.answers[`${maIndex}_q4_8`] = cascade.q4_8;
+    state.answers[`${maIndex}_rob_suggested`] = cascade.suggestion.result;
 
-    state.answers[`${maIndex}_q4_5`] = isQ3Checked ? "Yes" : "No";
-    const q4_6Enabled = isQ3Checked;
-    if (!q4_6Enabled) state.answers[`${maIndex}_q4_6`] = "";
-
-    const q4_7Enabled = foundX || foundQMark || isQ3Checked;
-    if (!q4_7Enabled) state.answers[`${maIndex}_q4_7`] = "";
-
-    const val2 = state.answers[`${maIndex}_q4_2`] || "";
-    const val4 = state.answers[`${maIndex}_q4_4`] || "";
-    const val6 = state.answers[`${maIndex}_q4_6`] || "";
-    const val7 = state.answers[`${maIndex}_q4_7`] || "";
-    const q4_8Enabled = YES_PROB_NO_INFO.includes(val2) || YES_PROB_NO_INFO.includes(val4) ||
-      YES_PROBABLY_YES.includes(val6) || YES_PROBABLY_YES.includes(val7);
-    if (!q4_8Enabled) state.answers[`${maIndex}_q4_8`] = "";
-
-    const suggestion = calculateRobSuggestionDetailed(
-      state.answers[`${maIndex}_q4_1`],
-      state.answers[`${maIndex}_q4_2`],
-      state.answers[`${maIndex}_q4_3`],
-      state.answers[`${maIndex}_q4_4`],
-      state.answers[`${maIndex}_q4_5`],
-      state.answers[`${maIndex}_q4_6`],
-      state.answers[`${maIndex}_q4_7`],
-      state.answers[`${maIndex}_q4_8`]
-    );
-    state.answers[`${maIndex}_rob_suggested`] = suggestion.result;
-
-    return { q4_2Enabled, q4_4Enabled, q4_6Enabled, q4_7Enabled, q4_8Enabled, robReasoning: suggestion.trail };
+    return {
+      q4_2Enabled: cascade.q4_2Enabled,
+      q4_4Enabled: cascade.q4_4Enabled,
+      q4_6Enabled: cascade.q4_6Enabled,
+      q4_7Enabled: cascade.q4_7Enabled,
+      q4_8Enabled: cascade.q4_8Enabled,
+      robReasoning: cascade.suggestion.trail,
+    };
   }
 
   function step4DetailRow(labelText, inputEl, wide) {

@@ -15,6 +15,7 @@ fs.mkdirSync(distDir, { recursive: true });
 let html = fs.readFileSync(path.join(srcDir, "index.html"), "utf-8");
 const css = fs.readFileSync(path.join(srcDir, "style.css"), "utf-8");
 const csvShared = fs.readFileSync(path.join(srcDir, "csv-shared.js"), "utf-8");
+const decisionTree = fs.readFileSync(path.join(srcDir, "decision-tree.js"), "utf-8");
 const appJs = fs.readFileSync(path.join(srcDir, "app.js"), "utf-8");
 const exceljs = fs.readFileSync(path.join(srcDir, "vendor", "exceljs.min.js"), "utf-8");
 const docx = fs.readFileSync(path.join(srcDir, "vendor", "docx.iife.js"), "utf-8");
@@ -49,6 +50,7 @@ html = replaceOrThrow(
   () => `<script type="text/plain" id="lib-html2canvas">\n${html2canvas}\n</script>`
 );
 html = replaceOrThrow(html, /<script src="csv-shared\.js"><\/script>/, () => `<script>\n${csvShared}\n</script>`);
+html = replaceOrThrow(html, /<script src="decision-tree\.js"><\/script>/, () => `<script>\n${decisionTree}\n</script>`);
 html = replaceOrThrow(html, /<script src="app\.js"><\/script>/, () => `<script>\n${appJs}\n</script>`);
 
 // Set by the release workflow (.github/workflows/deploy-pages.yml) to the
